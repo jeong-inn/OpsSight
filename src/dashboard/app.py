@@ -1,6 +1,7 @@
 import streamlit as st
 st.set_page_config(
     page_title="FabSight - Smart Fab AI Platform",
+    page_icon="🔬",
     layout="wide"
 )
 
