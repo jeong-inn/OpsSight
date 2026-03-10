@@ -5,6 +5,7 @@
 
 ---
 
+
 ##  프로젝트 개요
 
 반도체 제조 공정에서 설비 이상은 수율 저하와 직결됩니다.  
@@ -13,6 +14,7 @@ FabSight는 SECOM 공정 데이터(590개 센서, 1,567 샘플)를 기반으로
 Autonomous Fab 관점의 AI 운영 시스템을 구현한 프로젝트입니다.
 
 ---
+
 
 ##  시스템 아키텍처
 ```
@@ -54,8 +56,10 @@ Autonomous Fab 관점의 AI 운영 시스템을 구현한 프로젝트입니다.
         │ Dashboard        │  / 모델 비교 / Agent 리포트
         └─────────────────┘
 ```
+![FabSight Architecture](docs/architecture.png)
 
 ---
+
 
 ## 주요 기능
 
@@ -91,6 +95,7 @@ Autonomous Fab 관점의 AI 운영 시스템을 구현한 프로젝트입니다.
 
 ---
 
+
 ##  기술 스택
 
 | 분류 | 기술 |
@@ -102,6 +107,7 @@ Autonomous Fab 관점의 AI 운영 시스템을 구현한 프로젝트입니다.
 | Data | SECOM Dataset (UCI ML Repository) |
 
 ---
+
 
 ##  모델 성능
 
@@ -115,6 +121,7 @@ Autonomous Fab 관점의 AI 운영 시스템을 구현한 프로젝트입니다.
 > 이를 해결하기 위해 SHAP 기반 핵심 센서 추출 → Agent 진단 구조로 보완.
 
 ---
+
 
 ##  실행 방법
 ```bash
@@ -137,6 +144,7 @@ PYTHONPATH=$(pwd) streamlit run src/dashboard/app.py
 
 ---
 
+
 ## 📁 프로젝트 구조
 ```
 fabsight/
@@ -156,6 +164,7 @@ fabsight/
 ```
 
 ---
+
 
 ##  설계 의도 및 기술적 고려사항
 
