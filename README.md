@@ -164,3 +164,11 @@ fabsight/
 - **Agent 구조 선택**: 단순 LLM 프롬프트 호출이 아닌 역할 분리된 4단계 파이프라인으로 확장성 및 유지보수성 확보
 - **센서 익명화 대응**: 실무 환경에서는 EDD 연동 + LLM RAG 구조로 센서명 자동 변환 아키텍처 확장 가능
 - **Risk Scoring 방식**: SECOM은 정적 샘플 데이터로 시계열 예측이 부적합 → 현재 센서 상태 기반 고장 위험도 분류로 설계
+
+## Demo
+
+![FabSight Demo](docs/fabsight-demo.gif)
+
+> Alert System, FAB 공정 모니터링, SHAP Root Cause Analysis, Agent 진단 파이프라인 시연
+
+---
