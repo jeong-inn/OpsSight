@@ -422,33 +422,83 @@ with tab5:
         if st.button("Execute Agent Pipeline", use_container_width=True):
             if_scores_input = st.session_state.get('if_scores', np.random.randn(100))
             risk_scores_input = st.session_state.get('risk_scores', np.random.rand(total_count))
-            with st.spinner("Running agent pipeline..."):
+
+            # 단계별 진행 표시
+            progress_bar = st.progress(0, text="Initializing pipeline...")
+            status_area = st.empty()
+
+            # Stage 1
+            status_area.markdown("⚙️ **Stage 1. Detection Agent** running...")
+            progress_bar.progress(20, text="Stage 1/4 — Detection Agent")
+            import time; time.sleep(0.5)
+
+            # Stage 2
+            status_area.markdown("⚙️ **Stage 2. Diagnosis Agent** running...")
+            progress_bar.progress(45, text="Stage 2/4 — Diagnosis Agent")
+            time.sleep(0.5)
+
+            # Stage 3
+            status_area.markdown("⚙️ **Stage 3. Action Agent** running...")
+            progress_bar.progress(65, text="Stage 3/4 — Action Agent")
+            time.sleep(0.5)
+
+            # Stage 4
+            status_area.markdown("⚙️ **Stage 4. Report Agent (GPT-4o-mini)** running...")
+            progress_bar.progress(85, text="Stage 4/4 — Report Agent (LLM)")
+
+            with st.spinner("Generating LLM report..."):
                 pipeline = FabAgentPipeline()
                 result = pipeline.run(if_scores_input, risk_scores_input, top5_df)
+
+            progress_bar.progress(100, text="Pipeline complete.")
+            status_area.success("✅ All 4 stages completed successfully.")
 
             det = result["detection"]
             dia = result["diagnosis"]
             act = result["action"]
 
             st.markdown("---")
-            st.markdown("### Stage 1. Detection Agent")
+
+            # Stage 1 결과 카드
+            st.markdown("""
+            <div style='background:#1a1a2e22; border-left:4px solid #4a90d9;
+            border-radius:6px; padding:12px; margin-bottom:12px;'>
+            <strong>Stage 1. Detection Agent</strong>
+            </div>""", unsafe_allow_html=True)
             d1, d2, d3 = st.columns(3)
             d1.metric("Anomaly Detected", f"{det['anomaly_count']}")
             d2.metric("High Risk Samples", f"{det['high_risk_count']}")
             d3.metric("Avg Risk Score", f"{det['avg_risk_score']:.3f}")
 
-            st.markdown("### Stage 2. Diagnosis Agent")
+            # Stage 2 결과 카드
+            st.markdown("""
+            <div style='background:#1a2e1a22; border-left:4px solid #4ad94a;
+            border-radius:6px; padding:12px; margin:12px 0;'>
+            <strong>Stage 2. Diagnosis Agent</strong>
+            </div>""", unsafe_allow_html=True)
             st.markdown(f"**Primary Process**: `{dia['primary_process']}`")
             st.markdown(f"**Affected Stages**: {', '.join(dia['affected_stages'])}")
             causes_df = pd.DataFrame(dia["root_causes"])
             st.dataframe(causes_df, use_container_width=True, hide_index=True)
 
-            st.markdown("### Stage 3. Action Agent")
-            st.markdown(f"**Priority**: `{act['priority']}`")
+            # Stage 3 결과 카드
+            st.markdown("""
+            <div style='background:#2e1a1a22; border-left:4px solid #d94a4a;
+            border-radius:6px; padding:12px; margin:12px 0;'>
+            <strong>Stage 3. Action Agent</strong>
+            </div>""", unsafe_allow_html=True)
+            priority_color = "#ff4b4b" if act['priority'] == "즉시 조치" else "#ffa500"
+            st.markdown(f"**Priority**: <span style='color:{priority_color}; font-weight:bold'>{act['priority']}</span>",
+                        unsafe_allow_html=True)
             for i, a in enumerate(act["recommended_actions"]):
                 st.markdown(f"{i+1}. {a}")
 
-            st.markdown("### Stage 4. Report Agent (GPT-4o-mini)")
+            # Stage 4 결과 카드
+            st.markdown("""
+            <div style='background:#2e2a1a22; border-left:4px solid #d9a84a;
+            border-radius:6px; padding:12px; margin:12px 0;'>
+            <strong>Stage 4. Report Agent (GPT-4o-mini)</strong>
+            </div>""", unsafe_allow_html=True)
             st.markdown(result["report"])
 
             report_path = "data/raw/agent_report.txt"
