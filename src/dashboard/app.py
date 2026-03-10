@@ -117,6 +117,9 @@ kpi4.metric("Anomaly Rate", f"{anomaly_rate:.1f}%")
 kpi5.metric("Sensor Features", f"{X.shape[1]}")
 st.markdown("---")
 
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = 0
+    
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "FAB Monitoring",
     "SPC Control Chart",
@@ -505,6 +508,30 @@ with tab5:
             <strong>Stage 4. Report Agent (GPT-4o-mini)</strong>
             </div>""", unsafe_allow_html=True)
             st.markdown(result["report"])
+
+# ReAct Agent 추론 로그
+            st.markdown("---")
+            st.markdown("### 🤖 ReAct Agent Reasoning Trace")
+            st.caption("LLM이 스스로 판단한 Tool 호출 순서 및 결과")
+
+            TOOL_META = {
+                "analyze_anomaly":    ("", "#4a90d9", "Anomaly Analysis"),
+                "diagnose_root_cause":("", "#4ad94a", "Root Cause Diagnosis"),
+                "get_action_plan":    ("", "#d94a4a", "Action Planning"),
+                "generate_report":    ("", "#d9a84a", "Report Generation"),
+            }
+
+            for log in result.get("react_log", []):
+                tool = log["tool"]
+                icon, color, label = TOOL_META.get(tool, ("", "#888", tool))
+                with st.expander(f"Step {log['step']}: {label}", expanded=False):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**Input (LLM → Tool)**")
+                        st.json(log["args"])
+                    with col2:
+                        st.markdown("**Output (Tool → LLM)**")
+                        st.json(log["result"])
 
             report_path = "data/raw/agent_report.txt"
             with open(report_path, "w", encoding="utf-8") as f:

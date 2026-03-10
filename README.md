@@ -114,8 +114,8 @@ Autonomous Fab 관점의 AI 운영 시스템을 구현한 프로젝트입니다.
 | 모델 | Precision | Recall | F1 | ROC-AUC |
 |---|---|---|---|---|
 | SPC (3-sigma) | - | - | - | - |
-| Isolation Forest | 0.095 | 0.065 | 0.077 | - |
-| Risk Scorer (GBM) | 0.077 | 0.032 | 0.045 | 0.73 |
+| Isolation Forest + PCA | 0.120 | 0.120 | 0.120 | - |
+| Risk Scorer (GBM + SMOTE + PCA) | 0.120 | 0.667 | 0.203 | 0.626 |
 
 > SECOM 데이터셋 특성상 446개 고차원 센서로 인한 차원의 저주로 탐지 성능이 낮게 나타남.  
 > 이를 해결하기 위해 SHAP 기반 핵심 센서 추출 → Agent 진단 구조로 보완.

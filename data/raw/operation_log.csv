@@ -1,3 +1,5 @@
 timestamp,anomaly_count,high_risk_count,primary_process,priority
 2026-03-10 18:23:17,21,55,CVD,즉시 조치
 2026-03-10 23:01:29,43,37,CVD,즉시 조치
+2026-03-11 00:20:02,60,459,CVD,즉시 조치
+2026-03-11 00:22:43,46,454,CVD,즉시 조치
