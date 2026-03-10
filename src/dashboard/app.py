@@ -59,6 +59,8 @@ st.markdown("---")
 X, y = load_data()
 anomaly_count = int((y == -1).sum())
 total_count = len(y)
+normal_count = total_count - anomaly_count
+anomaly_rate = anomaly_count / total_count * 100
 
 # ── ALERT SYSTEM ──────────────────────────────────────────────────────────────
 if os.path.exists("data/raw/top5_sensors.csv"):
@@ -106,11 +108,13 @@ if os.path.exists("data/raw/top5_sensors.csv"):
         st.success("✅ All processes operating within normal parameters.")
 # ──────────────────────────────────────────────────────────────────────────────
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total Samples", f"{total_count:,}")
-c2.metric("Anomaly Samples", f"{anomaly_count}")
-c3.metric("Anomaly Rate", f"{anomaly_count/total_count*100:.1f}%")
-c4.metric("Sensor Features", f"{X.shape[1]}")
+# KPI 상단 배치
+kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+kpi1.metric("Total Samples", f"{total_count:,}")
+kpi2.metric("Normal Samples", f"{normal_count:,}", delta=f"{100-anomaly_rate:.1f}%")
+kpi3.metric("Anomaly Samples", f"{anomaly_count}", delta=f"-{anomaly_rate:.1f}%", delta_color="inverse")
+kpi4.metric("Anomaly Rate", f"{anomaly_rate:.1f}%")
+kpi5.metric("Sensor Features", f"{X.shape[1]}")
 st.markdown("---")
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
