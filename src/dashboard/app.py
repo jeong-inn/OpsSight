@@ -93,13 +93,13 @@ with tab1:
             thresh = PROCESS_THRESHOLDS.get(proc, {"warning": 0.6, "critical": 0.8})
             normalized = min(score / 0.03, 1.0)
             if normalized >= thresh["critical"]:
-                status = "ANOMALY"
+                status = "🔴 ANOMALY"
                 color = "#ff4b4b"
             elif normalized >= thresh["warning"]:
-                status = "WARNING"
+                status = "🟡  WARNING"
                 color = "#ffa500"
             else:
-                status = "NORMAL"
+                status = "🟢 NORMAL"
                 color = "#00cc44"
             if proc not in process_status or normalized > process_status[proc]["score"]:
                 process_status[proc] = {
