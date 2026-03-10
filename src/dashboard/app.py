@@ -25,6 +25,8 @@ elif platform.system() == 'Windows':
     matplotlib.rcParams['font.family'] = 'Malgun Gothic'
 matplotlib.rcParams['axes.unicode_minus'] = False
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.process_map import get_sensor_label, get_process_info, PROCESS_ORDER, PROCESS_THRESHOLDS
 from src.prediction.risk_scorer import PreFailureRiskScorer
 from src.agents.pipeline import FabAgentPipeline
