@@ -35,7 +35,7 @@ draw_box(ax, 7.0, 6.1, 3.5, 0.8, "Isolation Forest", "Unsupervised Anomaly Detec
 arrow(ax, 7, 7.4, 5.0, 6.9)
 arrow(ax, 7, 7.4, 8.5, 6.9)
 
-draw_box(ax, 5, 4.9, 4, 0.8, "Pre-failure Risk Scoring", "GBM / Risk Score 0~1", "#6e2fa0")
+draw_box(ax, 5, 4.9, 4, 0.8, "Pre-failure Risk Scoring", "GBM, Risk Score 0 to 1", "#6e2fa0")
 arrow(ax, 8.5, 6.1, 7.5, 5.7)
 
 draw_box(ax, 5, 3.7, 4, 0.8, "SHAP Feature Importance", "Top 5 Sensors / Process Mapping", "#0e6655")
