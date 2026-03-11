@@ -234,6 +234,20 @@ fabsight/
 - **센서 익명화 대응**: 실무 환경에서는 EDD 연동 + LLM RAG 구조로 센서명 자동 변환 아키텍처 확장 가능
 - **Risk Scoring 방식**: SECOM은 정적 샘플 데이터로 시계열 예측이 부적합 → 현재 센서 상태 기반 고장 위험도 분류로 설계
 
+##  Limitations & Future Work
+
+### 현재 한계
+- **데이터**: SECOM은 공개 데이터셋으로 실제 Fab 환경과 차이 존재. 센서명 익명화로 도메인 해석 제한
+- **Agent 구조**: Tool-guided orchestration에 가까움. 완전 자유 탐색형 ReAct는 아님
+- **Digital Twin**: 실제 설비 physics 기반이 아닌 경량 파라미터 시뮬레이션
+- **모델 성능**: 고차원 데이터 특성상 F1 0.135 수준. Recall 최대화 전략으로 보완
+
+### Future Work
+- 실제 Fab 센서 데이터 연동 시 EDD + LLM RAG로 센서명 자동 해석 아키텍처 확장 가능
+- LangGraph 기반 멀티 에이전트 협업 구조로 확장
+- 시계열 센서 데이터 확보 시 LSTM 기반 예측 모델 추가
+- 실제 설비 물리 모델 기반 Digital Twin 고도화
+
 ## Demo
 
 ![FabSight Demo](docs/fabsight-demo.gif)
