@@ -1,66 +1,42 @@
-# 🔬 FabSight
+# FabSight
 **Smart Semiconductor Fab Monitoring & Anomaly Diagnosis System**
 
-> 반도체 설비 센서 데이터 기반 이상 감지 · 고장 위험 예측 · Agent 진단 · 운영 관제 플랫폼
+[![Python](https://img.shields.io/badge/Python-3.9-blue)](https://python.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-red)](https://streamlit.io)
+[![OpenAI](https://img.shields.io/badge/LLM-GPT--4o--mini-green)](https://openai.com)
+[![Demo](https://img.shields.io/badge/Live-Demo-orange)](https://jeong-inn-fabsight-srcdashboardapp-mcwb99.streamlit.app)
 
 ---
 
+## Problem
 
-##  프로젝트 개요
+반도체 제조 공정은 수백 개 센서 데이터를 실시간으로 모니터링해야 하며, 설비 이상을 조기에 탐지하지 못하면 수율 손실로 직결된다. 기존 rule 기반 SPC 시스템은 비정규 분포 데이터에서 오탐이 많고, 고차원 센서 간 복합 패턴을 해석하기 어렵다.
 
-반도체 제조 공정에서 설비 이상은 수율 저하와 직결됩니다.  
-FabSight는 SECOM 공정 데이터(590개 센서, 1,567 샘플)를 기반으로  
-**통계 기반 이상탐지 → ML 이상탐지 → 고장 위험 예측 → Agent 자동 진단**까지  
-Autonomous Fab 관점의 AI 운영 시스템을 구현한 프로젝트입니다.
+**FabSight**는 이 문제를 해결하기 위해 설계한 Autonomous Fab 관점의 AI 운영 분석 시스템이다:
+- **SPC + ML 이중 이상탐지** — 통계 기반 한계를 ML로 보완
+- **Pre-failure Risk Scoring** — 고장 전 위험도 조기 예측
+- **ReAct Agent 자동 진단** — LLM이 Tool을 스스로 판단하여 근본 원인 분석 및 조치 리포트 생성
+- **Digital Twin Simulator** — 공정별 드리프트 시뮬레이션으로 이상 시나리오 검증
 
 ---
 
+## Dataset
 
-##  시스템 아키텍처
-```
-📡 SECOM Sensor Data (590 sensors, 1,567 samples)
-           │
-           ▼
-   ┌─────────────────┐
-   │   Preprocessing  │  결측치 처리, 분산 0 제거, StandardScaler
-   └────────┬────────┘
-            │
-     ┌──────┴──────┐
-     ▼             ▼
-┌─────────┐   ┌──────────────────┐
-│   SPC   │   │ Isolation Forest  │  비지도 ML 이상탐지
-│ 관리도  │   └────────┬─────────┘
-└─────────┘            │
-                       ▼
-              ┌─────────────────────┐
-              │ Pre-failure Risk     │  GBM 기반 고장 위험도 예측
-              │ Scoring (GBM)        │  (0~1 확률 출력)
-              └────────┬────────────┘
-                       │
-                       ▼
-              ┌─────────────────────┐
-              │  SHAP Feature        │  공정별 핵심 센서 추출
-              │  Importance          │  CVD / ETCH / CMP / LITHO
-              └────────┬────────────┘
-                       │
-                       ▼
-        ┌──────────────────────────────┐
-        │      Agent Pipeline          │
-        │  Detection → Diagnosis       │
-        │  → Action → Report           │
-        └────────┬─────────────────────┘
-                 │
-                 ▼
-        ┌─────────────────┐
-        │ Streamlit        │  FAB 모니터링 / 운영 로그
-        │ Dashboard        │  / 모델 비교 / Agent 리포트
-        └─────────────────┘
-```
+- **SECOM Dataset** (UCI ML Repository)
+- 590개 센서, 1,567 샘플, 전처리 후 446개 피처
+- 클래스 불균형 14:1 (정상 1,463 : 불량 104)
+- 센서 익명화 → 공정 매핑 테이블(CVD/ETCH/CMP/LITHO)로 도메인 해석
+
+---
+## System Architecture
+
+### Overall System
 ![FabSight Architecture](docs/architecture.png)
 
+### ReAct Agent Flow
+![Agent Flow](docs/agent_flow.png)
+
 ---
-
-
 ## 주요 기능
 
 ###  FAB 공정 상태 모니터링
