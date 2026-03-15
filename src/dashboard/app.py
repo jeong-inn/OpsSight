@@ -5,6 +5,9 @@ st.set_page_config(
     layout="wide"
 )
 
+if "api_call_count" not in st.session_state:
+    st.session_state.api_call_count = 0
+
 import sys
 import os
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -427,109 +430,117 @@ with tab4:
 
     if os.path.exists("data/raw/top5_sensors.csv"):
         top5_df = pd.read_csv("data/raw/top5_sensors.csv")
+        MAX_CALLS = 10
 
-        if st.button("Execute Operational Support Pipeline", use_container_width=True):
-            if_scores_input = st.session_state.get('if_scores', np.random.randn(100))
-            risk_scores_input = st.session_state.get('risk_scores', np.random.rand(total_count))
+        remaining = MAX_CALLS - st.session_state.api_call_count
 
-            progress_bar = st.progress(0, text="Initializing pipeline...")
-            status_area = st.empty()
+        if st.session_state.api_call_count >= MAX_CALLS:
+            st.warning("Maximum 3 executions per session reached. Please refresh the page to reset.")
+        else:
+            st.caption(f"Remaining executions this session: {remaining} / {MAX_CALLS}")
+            if st.button("Execute Operational Support Pipeline", use_container_width=True):
+                st.session_state.api_call_count += 1
+                if_scores_input = st.session_state.get('if_scores', np.random.randn(100))
+                risk_scores_input = st.session_state.get('risk_scores', np.random.rand(total_count))
 
-            status_area.markdown("⚙️ **Stage 1. Detection Agent** running...")
-            progress_bar.progress(20, text="Stage 1/4 — Detection Agent")
-            import time; time.sleep(0.5)
+                progress_bar = st.progress(0, text="Initializing pipeline...")
+                status_area = st.empty()
 
-            status_area.markdown("⚙️ **Stage 2. Diagnosis Agent** running...")
-            progress_bar.progress(45, text="Stage 2/4 — Diagnosis Agent")
-            time.sleep(0.5)
+                status_area.markdown("⚙️ **Stage 1. Detection Agent** running...")
+                progress_bar.progress(20, text="Stage 1/4 — Detection Agent")
+                import time; time.sleep(0.5)
 
-            status_area.markdown("⚙️ **Stage 3. Action Agent** running...")
-            progress_bar.progress(65, text="Stage 3/4 — Action Agent")
-            time.sleep(0.5)
+                status_area.markdown("⚙️ **Stage 2. Diagnosis Agent** running...")
+                progress_bar.progress(45, text="Stage 2/4 — Diagnosis Agent")
+                time.sleep(0.5)
 
-            status_area.markdown("⚙️ **Stage 4. Report Agent (GPT-4o-mini)** running...")
-            progress_bar.progress(85, text="Stage 4/4 — Report Agent (LLM)")
+                status_area.markdown("⚙️ **Stage 3. Action Agent** running...")
+                progress_bar.progress(65, text="Stage 3/4 — Action Agent")
+                time.sleep(0.5)
 
-            with st.spinner("Generating operator guidance report..."):
-                pipeline = FabAgentPipeline()
-                result = pipeline.run(if_scores_input, risk_scores_input, top5_df)
+                status_area.markdown("⚙️ **Stage 4. Report Agent (GPT-4o-mini)** running...")
+                progress_bar.progress(85, text="Stage 4/4 — Report Agent (LLM)")
 
-            progress_bar.progress(100, text="Pipeline complete.")
-            status_area.success("✅ All 4 stages completed successfully.")
+                with st.spinner("Generating operator guidance report..."):
+                    pipeline = FabAgentPipeline()
+                    result = pipeline.run(if_scores_input, risk_scores_input, top5_df)
 
-            det = result["detection"]
-            dia = result["diagnosis"]
-            act = result["action"]
+                progress_bar.progress(100, text="Pipeline complete.")
+                status_area.success("✅ All 4 stages completed successfully.")
 
-            st.markdown("---")
+                det = result["detection"]
+                dia = result["diagnosis"]
+                act = result["action"]
 
-            st.markdown("""
-            <div style='background:#1a1a2e22; border-left:4px solid #4a90d9;
-            border-radius:6px; padding:12px; margin-bottom:12px;'>
-            <strong>Stage 1. Detection Agent</strong>
-            </div>""", unsafe_allow_html=True)
-            d1, d2, d3 = st.columns(3)
-            d1.metric("Anomaly Detected", f"{det['anomaly_count']}")
-            d2.metric("High Priority Samples", f"{det['high_risk_count']}")
-            d3.metric("Avg Alert Score", f"{det['avg_risk_score']:.3f}")
+                st.markdown("---")
 
-            st.markdown("""
-            <div style='background:#1a2e1a22; border-left:4px solid #4ad94a;
-            border-radius:6px; padding:12px; margin:12px 0;'>
-            <strong>Stage 2. Diagnosis Agent</strong>
-            </div>""", unsafe_allow_html=True)
-            st.markdown(f"**Primary Subsystem**: `{dia['primary_process']}`")
-            st.markdown(f"**Affected Stages**: {', '.join(dia['affected_stages'])}")
-            causes_df = pd.DataFrame(dia["root_causes"])
-            st.dataframe(causes_df, use_container_width=True, hide_index=True)
+                st.markdown("""
+                <div style='background:#1a1a2e22; border-left:4px solid #4a90d9;
+                border-radius:6px; padding:12px; margin-bottom:12px;'>
+                <strong>Stage 1. Detection Agent</strong>
+                </div>""", unsafe_allow_html=True)
+                d1, d2, d3 = st.columns(3)
+                d1.metric("Anomaly Detected", f"{det['anomaly_count']}")
+                d2.metric("High Priority Samples", f"{det['high_risk_count']}")
+                d3.metric("Avg Alert Score", f"{det['avg_risk_score']:.3f}")
 
-            st.markdown("""
-            <div style='background:#2e1a1a22; border-left:4px solid #d94a4a;
-            border-radius:6px; padding:12px; margin:12px 0;'>
-            <strong>Stage 3. Action Agent</strong>
-            </div>""", unsafe_allow_html=True)
-            priority_color = "#ff4b4b" if act['priority'] == "즉시 조치" else "#ffa500"
-            st.markdown(f"**Priority**: <span style='color:{priority_color}; font-weight:bold'>{act['priority']}</span>",
-                        unsafe_allow_html=True)
-            for i, a in enumerate(act["recommended_actions"]):
-                st.markdown(f"{i+1}. {a}")
+                st.markdown("""
+                <div style='background:#1a2e1a22; border-left:4px solid #4ad94a;
+                border-radius:6px; padding:12px; margin:12px 0;'>
+                <strong>Stage 2. Diagnosis Agent</strong>
+                </div>""", unsafe_allow_html=True)
+                st.markdown(f"**Primary Subsystem**: `{dia['primary_process']}`")
+                st.markdown(f"**Affected Stages**: {', '.join(dia['affected_stages'])}")
+                causes_df = pd.DataFrame(dia["root_causes"])
+                st.dataframe(causes_df, use_container_width=True, hide_index=True)
 
-            st.markdown("""
-            <div style='background:#2e2a1a22; border-left:4px solid #d9a84a;
-            border-radius:6px; padding:12px; margin:12px 0;'>
-            <strong>Stage 4. Report Agent (GPT-4o-mini)</strong>
-            </div>""", unsafe_allow_html=True)
-            st.markdown(result["report"])
+                st.markdown("""
+                <div style='background:#2e1a1a22; border-left:4px solid #d94a4a;
+                border-radius:6px; padding:12px; margin:12px 0;'>
+                <strong>Stage 3. Action Agent</strong>
+                </div>""", unsafe_allow_html=True)
+                priority_color = "#ff4b4b" if act['priority'] == "즉시 조치" else "#ffa500"
+                st.markdown(f"**Priority**: <span style='color:{priority_color}; font-weight:bold'>{act['priority']}</span>",
+                            unsafe_allow_html=True)
+                for i, a in enumerate(act["recommended_actions"]):
+                    st.markdown(f"{i+1}. {a}")
 
-            st.markdown("---")
-            st.markdown("### 🤖 ReAct Agent Reasoning Trace")
-            st.caption("LLM이 판단한 Tool 호출 순서 및 결과")
+                st.markdown("""
+                <div style='background:#2e2a1a22; border-left:4px solid #d9a84a;
+                border-radius:6px; padding:12px; margin:12px 0;'>
+                <strong>Stage 4. Report Agent (GPT-4o-mini)</strong>
+                </div>""", unsafe_allow_html=True)
+                st.markdown(result["report"])
 
-            TOOL_META = {
-                "analyze_anomaly":    ("", "#4a90d9", "Anomaly Analysis"),
-                "diagnose_root_cause":("", "#4ad94a", "Root Cause Diagnosis"),
-                "get_action_plan":    ("", "#d94a4a", "Action Planning"),
-                "generate_report":    ("", "#d9a84a", "Report Generation"),
-            }
+                st.markdown("---")
+                st.markdown("### 🤖 ReAct Agent Reasoning Trace")
+                st.caption("LLM이 판단한 Tool 호출 순서 및 결과")
 
-            for log in result.get("react_log", []):
-                tool = log["tool"]
-                icon, color, label = TOOL_META.get(tool, ("", "#888", tool))
-                with st.expander(f"Step {log['step']}: {label}", expanded=False):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown("**Input (LLM → Tool)**")
-                        st.json(log["args"])
-                    with col2:
-                        st.markdown("**Output (Tool → LLM)**")
-                        st.json(log["result"])
+                TOOL_META = {
+                    "analyze_anomaly":    ("", "#4a90d9", "Anomaly Analysis"),
+                    "diagnose_root_cause":("", "#4ad94a", "Root Cause Diagnosis"),
+                    "get_action_plan":    ("", "#d94a4a", "Action Planning"),
+                    "generate_report":    ("", "#d9a84a", "Report Generation"),
+                }
 
-            report_path = "data/raw/agent_report.txt"
-            with open(report_path, "w", encoding="utf-8") as f:
-                f.write(f"=== OpsSight Operator Report ===\n")
-                f.write(f"Generated: {result['log']['timestamp']}\n\n")
-                f.write(result["report"])
-            st.success("Report saved: data/raw/agent_report.txt")
+                for log in result.get("react_log", []):
+                    tool = log["tool"]
+                    icon, color, label = TOOL_META.get(tool, ("", "#888", tool))
+                    with st.expander(f"Step {log['step']}: {label}", expanded=False):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown("**Input (LLM → Tool)**")
+                            st.json(log["args"])
+                        with col2:
+                            st.markdown("**Output (Tool → LLM)**")
+                            st.json(log["result"])
+
+                report_path = "data/raw/agent_report.txt"
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write(f"=== OpsSight Operator Report ===\n")
+                    f.write(f"Generated: {result['log']['timestamp']}\n\n")
+                    f.write(result["report"])
+                st.success("Report saved: data/raw/agent_report.txt")
     else:
         st.info("Run signal impact analysis first.")
 
