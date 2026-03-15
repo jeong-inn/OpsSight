@@ -1,0 +1,51 @@
+{
+    "name": "multiple_warning_then_recovery",
+    "description": "Multiple warning conditions degrade operation, followed by successful recovery",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "READY",
+    "expected_alert_level": "INFO",
+    "events": [
+      {
+        "step": 1,
+        "description": "communication delay begins",
+        "inputs": {
+          "anomaly_score": 0.52,
+          "risk_score": 0.61,
+          "anomaly_count": 2,
+          "persistent_fault": false,
+          "communication_delay": true,
+          "sensor_stuck": false,
+          "compound_fault": false,
+          "recovery_confirmed": false
+        }
+      },
+      {
+        "step": 2,
+        "description": "warning persists but does not escalate to persistent fault",
+        "inputs": {
+          "anomaly_score": 0.57,
+          "risk_score": 0.64,
+          "anomaly_count": 3,
+          "persistent_fault": false,
+          "communication_delay": true,
+          "sensor_stuck": false,
+          "compound_fault": false,
+          "recovery_confirmed": false
+        }
+      },
+      {
+        "step": 3,
+        "description": "signal conditions stabilize and recovery is confirmed",
+        "inputs": {
+          "anomaly_score": 0.11,
+          "risk_score": 0.17,
+          "anomaly_count": 0,
+          "persistent_fault": false,
+          "communication_delay": false,
+          "sensor_stuck": false,
+          "compound_fault": false,
+          "recovery_confirmed": true
+        }
+      }
+    ]
+  }

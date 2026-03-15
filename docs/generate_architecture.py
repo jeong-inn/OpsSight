@@ -21,7 +21,7 @@ ax.set_ylim(0, 12)
 ax.axis('off')
 fig.patch.set_facecolor('#0e1117')
 
-draw_box(ax, 5.5, 10.3, 5, 0.8, "SECOM Sensor Data\n(590 sensors, 1,567 samples)", "#2c3e50", 8)
+draw_box(ax, 5.5, 10.3, 5, 0.8, "Multi-Signal Input Data\n(590 sensors, 1,567 samples)", "#2c3e50", 8)
 draw_box(ax, 5.5, 9.1, 5, 0.8, "Preprocessing\n(Missing value, StandardScaler)", "#34495e", 8)
 arrow(ax, 8, 10.3, 8, 9.9)
 

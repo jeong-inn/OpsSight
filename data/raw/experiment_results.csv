@@ -1,5 +1,0 @@
-Setting,Precision,Recall,F1,ROC-AUC
-Baseline (GBM),0.25,0.095,0.138,0.729
-+ SMOTE,0.333,0.048,0.083,0.652
-+ SMOTE + PCA,0.182,0.095,0.125,0.535
-+ SMOTE + PCA + Threshold Tuning,0.079,0.476,0.135,0.584

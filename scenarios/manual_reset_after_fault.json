@@ -1,0 +1,28 @@
+{
+    "name": "manual_reset_after_fault",
+    "description": "Persistent fault leads to fault state and then manual reset returns to standby",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "STANDBY",
+    "expected_alert_level": "INFO",
+    "events": [
+      {
+        "step": 1,
+        "description": "persistent compound abnormal condition locks system into fault",
+        "inputs": {
+          "anomaly_score": 0.81,
+          "risk_score": 0.87,
+          "anomaly_count": 6,
+          "persistent_fault": true,
+          "communication_delay": true,
+          "sensor_stuck": true,
+          "compound_fault": true,
+          "recovery_confirmed": false
+        }
+      },
+      {
+        "step": 2,
+        "description": "operator performs manual reset",
+        "action": "reset"
+      }
+    ]
+  }

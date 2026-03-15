@@ -1,0 +1,23 @@
+{
+    "name": "sensor_stuck_warning",
+    "description": "Single sensor stuck condition causes degraded operation",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "SAFE_SHUTDOWN",
+    "expected_alert_level": "CRITICAL",
+    "events": [
+      {
+        "step": 1,
+        "description": "sensor stuck detected with elevated risk",
+        "inputs": {
+          "anomaly_score": 0.72,
+          "risk_score": 0.76,
+          "anomaly_count": 2,
+          "persistent_fault": false,
+          "communication_delay": false,
+          "sensor_stuck": true,
+          "compound_fault": false,
+          "recovery_confirmed": false
+        }
+      }
+    ]
+  }

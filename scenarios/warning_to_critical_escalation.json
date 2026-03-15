@@ -1,0 +1,37 @@
+{
+    "name": "warning_to_critical_escalation",
+    "description": "Warning condition escalates into critical abnormal condition",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "SAFE_SHUTDOWN",
+    "expected_alert_level": "CRITICAL",
+    "events": [
+      {
+        "step": 1,
+        "description": "initial communication delay creates degraded operation",
+        "inputs": {
+          "anomaly_score": 0.56,
+          "risk_score": 0.63,
+          "anomaly_count": 3,
+          "persistent_fault": false,
+          "communication_delay": true,
+          "sensor_stuck": false,
+          "compound_fault": false,
+          "recovery_confirmed": false
+        }
+      },
+      {
+        "step": 2,
+        "description": "compound abnormal condition escalates severity",
+        "inputs": {
+          "anomaly_score": 0.78,
+          "risk_score": 0.84,
+          "anomaly_count": 5,
+          "persistent_fault": false,
+          "communication_delay": true,
+          "sensor_stuck": false,
+          "compound_fault": true,
+          "recovery_confirmed": false
+        }
+      }
+    ]
+  }

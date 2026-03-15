@@ -1,0 +1,23 @@
+{
+    "name": "normal_startup",
+    "description": "Normal startup and stable operation scenario",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "ACTIVE",
+    "expected_alert_level": "INFO",
+    "events": [
+      {
+        "step": 1,
+        "description": "stable signals under normal range",
+        "inputs": {
+          "anomaly_score": 0.12,
+          "risk_score": 0.18,
+          "anomaly_count": 0,
+          "persistent_fault": false,
+          "communication_delay": false,
+          "sensor_stuck": false,
+          "compound_fault": false,
+          "recovery_confirmed": false
+        }
+      }
+    ]
+  }

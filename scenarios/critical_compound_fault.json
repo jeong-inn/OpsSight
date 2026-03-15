@@ -1,0 +1,23 @@
+{
+    "name": "critical_compound_fault",
+    "description": "Compound fault escalates to safe shutdown or fault state",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "FAULT",
+    "expected_alert_level": "CRITICAL",
+    "events": [
+      {
+        "step": 1,
+        "description": "persistent and compound abnormal condition detected",
+        "inputs": {
+          "anomaly_score": 0.78,
+          "risk_score": 0.83,
+          "anomaly_count": 6,
+          "persistent_fault": true,
+          "communication_delay": true,
+          "sensor_stuck": true,
+          "compound_fault": true,
+          "recovery_confirmed": false
+        }
+      }
+    ]
+  }

@@ -1,0 +1,23 @@
+{
+    "name": "warning_comm_delay",
+    "description": "Communication delay causes degraded operation",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "DEGRADED",
+    "expected_alert_level": "WARNING",
+    "events": [
+      {
+        "step": 1,
+        "description": "communication delay with multiple anomalous signals",
+        "inputs": {
+          "anomaly_score": 0.58,
+          "risk_score": 0.67,
+          "anomaly_count": 3,
+          "persistent_fault": false,
+          "communication_delay": true,
+          "sensor_stuck": false,
+          "compound_fault": false,
+          "recovery_confirmed": false
+        }
+      }
+    ]
+  }

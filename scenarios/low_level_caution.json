@@ -1,0 +1,23 @@
+{
+    "name": "low_level_caution",
+    "description": "Minor abnormal signals trigger caution but do not change operational state",
+    "initial_actions": ["boot", "arm", "activate"],
+    "expected_final_state": "ACTIVE",
+    "expected_alert_level": "CAUTION",
+    "events": [
+      {
+        "step": 1,
+        "description": "minor abnormal signal appears but remains below warning threshold",
+        "inputs": {
+          "anomaly_score": 0.31,
+          "risk_score": 0.35,
+          "anomaly_count": 1,
+          "persistent_fault": false,
+          "communication_delay": false,
+          "sensor_stuck": false,
+          "compound_fault": false,
+          "recovery_confirmed": false
+        }
+      }
+    ]
+  }

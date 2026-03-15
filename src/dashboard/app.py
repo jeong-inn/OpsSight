@@ -1,7 +1,7 @@
 import streamlit as st
 st.set_page_config(
-    page_title="FabSight - Smart Fab AI Platform",
-    page_icon="🔬",
+    page_title="OpsSight - Operational Monitoring & Validation Platform",
+    page_icon="⚙️",
     layout="wide"
 )
 
@@ -33,6 +33,10 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 from src.process_map import get_sensor_label, get_process_info, PROCESS_ORDER, PROCESS_THRESHOLDS
 from src.prediction.risk_scorer import PreFailureRiskScorer
 from src.agents.pipeline import FabAgentPipeline
+from src.core.runtime_controller import RuntimeController
+from src.test_runner.scenario_loader import ScenarioLoader
+from src.test_runner.scenario_executor import ScenarioExecutor
+from src.test_runner.validator import ScenarioValidator
 
 @st.cache_data
 def load_data():
@@ -41,19 +45,102 @@ def load_data():
     y = -y
     return X, y
 
+def build_runtime_snapshot_from_top_signals(controller, top5_path="data/raw/top5_sensors.csv"):
+    if not os.path.exists(top5_path):
+        return controller.evaluate_and_update(
+            anomaly_score=0.12,
+            risk_score=0.18,
+            anomaly_count=0,
+            persistent_fault=False,
+            communication_delay=False,
+            sensor_stuck=False,
+            compound_fault=False,
+        )
+
+    top_df = pd.read_csv(top5_path)
+
+    normalized_scores = []
+    warning_count = 0
+    critical_count = 0
+
+    for _, row in top_df.iterrows():
+        sid = int(row["sensor"])
+        info = get_process_info(sid)
+        proc = info["process"]
+        shap_score = float(row["shap_score"])
+
+        thresh = PROCESS_THRESHOLDS.get(proc, {"warning": 0.6, "critical": 0.8})
+        normalized = min(shap_score / 0.03, 1.0)
+        normalized_scores.append(normalized)
+
+        if normalized >= thresh["critical"]:
+            critical_count += 1
+        elif normalized >= thresh["warning"]:
+            warning_count += 1
+
+    avg_score = float(np.mean(normalized_scores)) if normalized_scores else 0.0
+    max_score = float(np.max(normalized_scores)) if normalized_scores else 0.0
+
+    anomaly_count = warning_count + critical_count
+    persistent_fault = critical_count >= 2
+    communication_delay = warning_count >= 2
+    sensor_stuck = critical_count >= 1 and avg_score > 0.75
+    compound_fault = anomaly_count >= 3 and critical_count >= 1
+
+    return controller.evaluate_and_update(
+        anomaly_score=max_score,
+        risk_score=avg_score,
+        anomaly_count=anomaly_count,
+        persistent_fault=persistent_fault,
+        communication_delay=communication_delay,
+        sensor_stuck=sensor_stuck,
+        compound_fault=compound_fault,
+    )
+
+def render_runtime_snapshot(snapshot, controller):
+    state_col1, state_col2, state_col3 = st.columns(3)
+    state_col1.metric("Current State", snapshot.current_state)
+    state_col2.metric("Alert Level", snapshot.alert_level)
+    state_col3.metric("Last Event", snapshot.last_event or "-")
+
+    if snapshot.alert_level == "CRITICAL":
+        st.error(f"**Recommended Action**: {snapshot.recommended_action}")
+    elif snapshot.alert_level == "WARNING":
+        st.warning(f"**Recommended Action**: {snapshot.recommended_action}")
+    elif snapshot.alert_level == "CAUTION":
+        st.info(f"**Recommended Action**: {snapshot.recommended_action}")
+    else:
+        st.success(f"**Recommended Action**: {snapshot.recommended_action}")
+
+    with st.expander("Runtime Decision Details", expanded=False):
+        st.write("**Reasons**")
+        for reason in snapshot.reasons:
+            st.write(f"- {reason}")
+        
+        st.write("**Fault Persistence Tracking**")
+        st.write(f"- warning_streak: {snapshot.warning_streak}")
+        st.write(f"- critical_streak: {snapshot.critical_streak}")
+        st.write(f"- normal_streak: {snapshot.normal_streak}")
+        st.write(f"- persistent_critical: {snapshot.persistent_critical}")
+
+        history_df = pd.DataFrame(controller.get_history())
+        if not history_df.empty:
+            st.write("**State Transition History**")
+            st.dataframe(history_df, use_container_width=True, hide_index=True)
+
 # 사이드바
-st.sidebar.title("FabSight")
-st.sidebar.markdown("**Smart Fab AI Platform**")
+st.sidebar.title("OpsSight")
+st.sidebar.markdown("**State-Aware Operational Monitoring Platform**")
 st.sidebar.markdown("---")
-contamination = st.sidebar.slider("Contamination", 0.01, 0.15, 0.07, 0.01)
-run_analysis = st.sidebar.button("Run Analysis", use_container_width=True)
+contamination = st.sidebar.slider("Detection Sensitivity", 0.01, 0.15, 0.07, 0.01)
+run_analysis = st.sidebar.button("Run Monitoring Analysis", use_container_width=True)
 st.sidebar.markdown("---")
-st.sidebar.markdown("**Analysis Pipeline**")
+st.sidebar.markdown("**Operational Support Pipeline**")
 st.sidebar.markdown("1. Detection Agent\n\n2. Diagnosis Agent\n\n3. Action Agent\n\n4. Report Agent")
 
 # 메인 헤더
-st.title("FabSight")
-st.markdown("**Smart Semiconductor Fab Monitoring & Anomaly Diagnosis System**")
+st.title("OpsSight")
+st.markdown("**State-Aware Operational Monitoring, Alerting & Validation System**")
 st.markdown("---")
 
 X, y = load_data()
@@ -61,6 +148,15 @@ anomaly_count = int((y == -1).sum())
 total_count = len(y)
 normal_count = total_count - anomaly_count
 anomaly_rate = anomaly_count / total_count * 100
+
+runtime_controller = RuntimeController()
+runtime_controller.boot()
+runtime_controller.arm()
+runtime_controller.activate()
+
+runtime_snapshot = build_runtime_snapshot_from_top_signals(runtime_controller)
+render_runtime_snapshot(runtime_snapshot, runtime_controller)
+st.markdown("---")
 
 # ── ALERT SYSTEM ──────────────────────────────────────────────────────────────
 if os.path.exists("data/raw/top5_sensors.csv"):
@@ -96,42 +192,32 @@ if os.path.exists("data/raw/top5_sensors.csv"):
 
         if critical_alerts:
             alert_msg = " | ".join(
-                [f"🔴 [{a['process']}] {a['param']} — Risk {a['score']:.1%}" for a in critical_alerts]
+                [f"🔴 [{a['process']}] {a['param']} — Alert Score {a['score']:.1%}" for a in critical_alerts]
             )
             st.error(f"**CRITICAL ALERT** {alert_msg}")
         if warning_alerts:
             warn_msg = " | ".join(
-                [f"🟡 [{a['process']}] {a['param']} — Risk {a['score']:.1%}" for a in warning_alerts]
+                [f"🟡 [{a['process']}] {a['param']} — Alert Score {a['score']:.1%}" for a in warning_alerts]
             )
             st.warning(f"**WARNING** {warn_msg}")
     else:
-        st.success("✅ All processes operating within normal parameters.")
+        st.success("✅ All subsystems operating within normal parameters.")
 # ──────────────────────────────────────────────────────────────────────────────
 
-# KPI 상단 배치
-kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
-kpi1.metric("Total Samples", f"{total_count:,}")
-kpi2.metric("Normal Samples", f"{normal_count:,}", delta=f"{100-anomaly_rate:.1f}%")
-kpi3.metric("Anomaly Samples", f"{anomaly_count}", delta=f"-{anomaly_rate:.1f}%", delta_color="inverse")
-kpi4.metric("Anomaly Rate", f"{anomaly_rate:.1f}%")
-kpi5.metric("Sensor Features", f"{X.shape[1]}")
-st.markdown("---")
-
-
 tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "FAB Monitoring",
-    "SPC Control Chart",
-    "Anomaly Detection & Risk Scoring",
-    "Feature Analysis",
-    "Agent Diagnosis Report",
+    "System Status Monitoring",
+    "Scenario Validation",
+    "Alert Overview",
+    "Operator Guidance Report",
     "Operation Log",
-    "Stream Simulator"
+    "Scenario Stream Simulator",
+    "Signal Impact Analysis"
 ])
 
-# TAB 1: FAB 모니터링
+# TAB 1: 시스템 상태 모니터링
 with tab1:
-    st.subheader("FAB Process Status Monitoring")
-    st.markdown("Process-level equipment status overview (Digital Twin inspired)")
+    st.subheader("System Status Monitoring")
+    st.markdown("Subsystem-level operational status overview.")
     st.markdown("---")
 
     if os.path.exists("data/raw/top5_sensors.csv"):
@@ -145,23 +231,27 @@ with tab1:
             score = float(row['shap_score'])
             thresh = PROCESS_THRESHOLDS.get(proc, {"warning": 0.6, "critical": 0.8})
             normalized = min(score / 0.03, 1.0)
+
             if normalized >= thresh["critical"]:
-                status = "🔴 ANOMALY"
+                status = "🔴 ABNORMAL"
                 color = "#ff4b4b"
             elif normalized >= thresh["warning"]:
-                status = "🟡 WARNING"
+                status = "🟡 DEGRADED"
                 color = "#ffa500"
             else:
                 status = "🟢 NORMAL"
                 color = "#00cc44"
+
             if proc not in process_status or normalized > process_status[proc]["score"]:
                 process_status[proc] = {
-                    "status": status, "color": color,
-                    "score": normalized, "param": info["param"],
+                    "status": status,
+                    "color": color,
+                    "score": normalized,
+                    "param": info["param"],
                     "stage": info["stage"]
                 }
 
-        st.markdown("### Process Equipment Status")
+        st.markdown("### Subsystem Operational Status")
         cols = st.columns(4)
         for i, proc in enumerate(PROCESS_ORDER):
             with cols[i]:
@@ -173,7 +263,7 @@ with tab1:
                     <h3 style='color:{ps["color"]}; margin:0'>{proc}</h3>
                     <p style='font-size:11px; color:gray; margin:4px 0'>{ps["stage"]}</p>
                     <h4 style='margin:8px 0'>{ps["status"]}</h4>
-                    <p style='font-size:12px; margin:0'>Risk: {ps["score"]:.1%}</p>
+                    <p style='font-size:12px; margin:0'>Alert Score: {ps["score"]:.1%}</p>
                     <p style='font-size:11px; color:gray; margin:0'>{ps["param"]}</p>
                     </div>""", unsafe_allow_html=True)
                 else:
@@ -185,286 +275,179 @@ with tab1:
                     </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("### Risk Score by Process")
-        fig_fab, ax_fab = plt.subplots(figsize=(10, 3))
-        procs = list(process_status.keys())
-        scores = [process_status[p]["score"] for p in procs]
-        bar_colors = ["#ff4b4b" if s >= 0.8 else "#ffa500" if s >= 0.6 else "#00cc44" for s in scores]
-        ax_fab.barh(procs, scores, color=bar_colors)
-        ax_fab.axvline(0.6, color='orange', linestyle='--', linewidth=1, label='Warning Threshold')
-        ax_fab.axvline(0.8, color='red', linestyle='--', linewidth=1, label='Critical Threshold')
-        ax_fab.set_xlim(0, 1)
-        ax_fab.set_xlabel('Risk Score')
-        ax_fab.set_title('Anomaly Risk Score by Process')
-        ax_fab.legend()
-        st.pyplot(fig_fab)
-        plt.close(fig_fab)
+        abnormal_count = sum(1 for v in process_status.values() if "ABNORMAL" in v["status"])
+        degraded_count = sum(1 for v in process_status.values() if "DEGRADED" in v["status"])
+        normal_count = sum(1 for v in process_status.values() if "NORMAL" in v["status"])
+
+        summary_col1, summary_col2, summary_col3 = st.columns(3)
+        summary_col1.metric("Abnormal Subsystems", abnormal_count)
+        summary_col2.metric("Degraded Subsystems", degraded_count)
+        summary_col3.metric("Normal Subsystems", normal_count)
+
     else:
-        st.info("Run feature importance analysis first: python src/analysis/feature_importance.py")
-
-# TAB 2: SPC
+        st.info("Run signal impact analysis first: python src/analysis/feature_importance.py")
+# TAB 2: Scenario Validation
 with tab2:
-    st.subheader("SPC Control Chart (Statistical Process Control)")
-    st.markdown("3-sigma rule based anomaly detection using normal data baseline")
+    st.subheader("Scenario Validation")
+    st.markdown("Execute predefined operational scenarios and compare expected vs actual results.")
+    st.markdown("---")
 
-    sensor_idx = st.slider("Select Sensor", 0, X.shape[1]-1, 0)
-    col = X.columns[sensor_idx]
-    sensor = X[col]
-    sensor_values = sensor.values
-    y_values = y.values
-    normal_sensor = sensor[y == 1]
+    loader = ScenarioLoader()
+    executor = ScenarioExecutor()
+    validator = ScenarioValidator()
 
-    mean = normal_sensor.mean()
-    std = normal_sensor.std()
-    ucl = mean + 3 * std
-    lcl = mean - 3 * std
+    scenario_files = loader.list_scenarios()
 
-    fig, ax = plt.subplots(figsize=(12, 4))
-    colors = ['red' if label == -1 else 'steelblue' for label in y_values]
-    ax.scatter(range(len(sensor_values)), sensor_values, c=colors, s=8, alpha=0.6)
-    ax.axhline(mean, color='green', linewidth=1.5, linestyle='--', label=f'Mean: {mean:.2f}')
-    ax.axhline(ucl, color='red', linewidth=1.5, linestyle='--', label=f'UCL: {ucl:.2f}')
-    ax.axhline(lcl, color='red', linewidth=1.5, linestyle='--', label=f'LCL: {lcl:.2f}')
-    ax.set_title(f'SPC Control Chart - {col}')
-    ax.set_xlabel('Sample Index')
-    ax.set_ylabel('Sensor Value (Normalized)')
-    ax.legend()
-    st.pyplot(fig)
-    plt.close(fig)
+    if not scenario_files:
+        st.warning("No scenario files found in the scenarios directory.")
+    else:
+        selected_scenario = st.selectbox(
+            "Select Scenario",
+            scenario_files,
+            index=0
+        )
 
-    out_of_control = ((sensor > ucl) | (sensor < lcl)).sum()
-    st.info(f"Sensor {col}: Out-of-control samples = **{out_of_control}** ({out_of_control/len(sensor)*100:.1f}%)")
+        scenario = loader.load(selected_scenario)
 
-# TAB 3: 이상탐지 & Risk Scoring
+        st.markdown("### Scenario Overview")
+        overview_col1, overview_col2 = st.columns(2)
+        with overview_col1:
+            st.write(f"**Name**: {scenario.name}")
+            st.write(f"**Description**: {scenario.description}")
+            st.write(f"**Initial Actions**: {', '.join(scenario.initial_actions)}")
+        with overview_col2:
+            st.write(f"**Expected Final State**: {scenario.expected_final_state}")
+            st.write(f"**Expected Alert Level**: {scenario.expected_alert_level}")
+            st.write(f"**Event Count**: {len(scenario.events)}")
+
+        if st.button("Run Scenario Validation", use_container_width=True):
+            execution = executor.run(scenario)
+            validation = validator.validate(
+                expected_final_state=scenario.expected_final_state,
+                actual_final_state=execution.final_state,
+                expected_alert_level=scenario.expected_alert_level,
+                actual_alert_level=execution.final_alert_level,
+            )
+
+            st.markdown("---")
+            st.markdown("### Validation Result")
+
+            result_col1, result_col2, result_col3 = st.columns(3)
+            result_col1.metric("Expected State", scenario.expected_final_state)
+            result_col2.metric("Actual State", execution.final_state)
+            result_col3.metric("Validation", "PASS" if validation.passed else "FAIL")
+
+            result_col4, result_col5 = st.columns(2)
+            result_col4.metric("Expected Alert", scenario.expected_alert_level)
+            result_col5.metric("Actual Alert", execution.final_alert_level)
+
+            if validation.passed:
+                st.success("Scenario validation passed. Expected and actual results match.")
+            else:
+                st.error("Scenario validation failed. Expected and actual results do not match.")
+
+            st.markdown("### Recommended Action")
+            if execution.final_alert_level == "CRITICAL":
+                st.error(execution.recommended_action)
+            elif execution.final_alert_level == "WARNING":
+                st.warning(execution.recommended_action)
+            elif execution.final_alert_level == "CAUTION":
+                st.info(execution.recommended_action)
+            else:
+                st.success(execution.recommended_action)
+
+            st.markdown("### Match Details")
+            st.json(validation.details)
+
+            st.markdown("### Step Results")
+            step_df = pd.DataFrame(execution.step_results)
+            st.dataframe(step_df, use_container_width=True, hide_index=True)
+# TAB 3: 이상탐지 & Alert Scoring
 with tab3:
-    st.subheader("Anomaly Detection & Pre-failure Risk Scoring")
-    st.markdown("Isolation Forest anomaly detection + GBM-based failure risk prediction")
+    st.subheader("Alert Overview")
+    st.markdown("Summarized alert priority view for operational decision support.")
 
     if run_analysis:
-        with st.spinner("Training models..."):
+        with st.spinner("Running alert overview..."):
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.3, random_state=42, stratify=y
             )
-            if_model = IsolationForest(n_estimators=200, contamination=contamination,
-                                       random_state=42, n_jobs=1)
-            if_model.fit(X_train)
-            if_scores = if_model.decision_function(X_test)
-            if_preds = if_model.predict(X_test)
 
             risk_scorer = PreFailureRiskScorer()
-            risk_metrics = risk_scorer.train(X, y)
-            risk_scores_all = risk_scorer.predict_risk(X)
+            risk_scorer.train(X, y)
             risk_scores_test = risk_scorer.predict_risk(X_test)
 
-        st.markdown("### Model Performance Comparison")
-        from sklearn.metrics import precision_score, recall_score, f1_score
-        y_test_bin = (y_test == -1).astype(int)
-        if_pred_bin = (if_preds == -1).astype(int)
-
-        comparison_df = pd.DataFrame({
-            "Model": ["Isolation Forest", "Risk Scorer (GBM)"],
-            "Precision": [
-                round(precision_score(y_test_bin, if_pred_bin, zero_division=0), 3),
-                risk_metrics["precision"]
-            ],
-            "Recall": [
-                round(recall_score(y_test_bin, if_pred_bin, zero_division=0), 3),
-                risk_metrics["recall"]
-            ],
-            "F1": [
-                round(f1_score(y_test_bin, if_pred_bin, zero_division=0), 3),
-                risk_metrics["f1"]
-            ],
-            "ROC-AUC": ["-", risk_metrics["roc_auc"]]
-        })
-        st.dataframe(comparison_df, use_container_width=True, hide_index=True)
-
-        st.markdown("### Pre-failure Risk Score Distribution")
+        st.markdown("### Alert Priority Summary")
         col_a, col_b, col_c = st.columns(3)
-        high_risk = int((risk_scores_test >= 0.7).sum())
-        mid_risk  = int(((risk_scores_test >= 0.4) & (risk_scores_test < 0.7)).sum())
-        low_risk  = int((risk_scores_test < 0.4).sum())
-        col_a.metric("High Risk", f"{high_risk}")
-        col_b.metric("Medium Risk", f"{mid_risk}")
-        col_c.metric("Low Risk", f"{low_risk}")
 
-        fig3, axes = plt.subplots(1, 2, figsize=(12, 4))
-        c2_colors = ['red' if label == -1 else 'steelblue' for label in y_test.values]
-        axes[0].scatter(range(len(if_scores)), if_scores, c=c2_colors, s=8, alpha=0.6)
-        axes[0].axhline(0, color='orange', linewidth=1.5, linestyle='--', label='Decision Boundary')
-        axes[0].set_title('Isolation Forest Anomaly Score')
-        axes[0].set_xlabel('Sample Index')
-        axes[0].legend()
-        axes[1].hist(risk_scores_test[y_test.values == 1], bins=30, alpha=0.6,
-                     color='steelblue', label='Normal')
-        axes[1].hist(risk_scores_test[y_test.values == -1], bins=30, alpha=0.6,
-                     color='red', label='Anomaly')
-        axes[1].axvline(0.7, color='red', linestyle='--', label='High Risk')
-        axes[1].axvline(0.4, color='orange', linestyle='--', label='Medium Risk')
-        axes[1].set_title('Pre-failure Risk Score Distribution')
-        axes[1].set_xlabel('Risk Score')
-        axes[1].legend()
-        st.pyplot(fig3)
-        plt.close(fig3)
+        critical_count = int((risk_scores_test >= 0.7).sum())
+        warning_count = int(((risk_scores_test >= 0.4) & (risk_scores_test < 0.7)).sum())
+        low_count = int((risk_scores_test < 0.4).sum())
 
-        st.session_state['if_scores'] = if_scores
-        st.session_state['risk_scores'] = risk_scores_all
-        st.session_state['analysis_done'] = True
+        col_a.metric("Critical Candidates", f"{critical_count}")
+        col_b.metric("Warning Candidates", f"{warning_count}")
+        col_c.metric("Low Priority Signals", f"{low_count}")
+
+        st.markdown("### Alert Priority Score Distribution")
+        fig_alert, ax_alert = plt.subplots(figsize=(8, 4))
+        ax_alert.hist(
+            risk_scores_test[y_test.values == 1],
+            bins=30,
+            alpha=0.6,
+            label="Normal"
+        )
+        ax_alert.hist(
+            risk_scores_test[y_test.values == -1],
+            bins=30,
+            alpha=0.6,
+            label="Anomaly"
+        )
+        ax_alert.axvline(0.7, linestyle='--', linewidth=1, label='Critical Threshold')
+        ax_alert.axvline(0.4, linestyle='--', linewidth=1, label='Warning Threshold')
+        ax_alert.set_title("Alert Priority Score Distribution")
+        ax_alert.set_xlabel("Alert Score")
+        ax_alert.legend()
+        st.pyplot(fig_alert)
+        plt.close(fig_alert)
+
+        st.info(
+            "Alert priority is used as an operational support signal and is connected "
+            "to the state-aware runtime decision flow."
+        )
     else:
-        st.info("Click 'Run Analysis' in the sidebar to start.")
+        st.info("Click 'Run Monitoring Analysis' in the sidebar to generate alert overview.")
 
-# TAB 4: SHAP + Root Cause Graph
+# TAB 4: Agent 리포트
 with tab4:
-    st.subheader("Feature Analysis (SHAP Feature Importance)")
-
-    if os.path.exists("data/raw/top5_sensors.csv"):
-        top5_df = pd.read_csv("data/raw/top5_sensors.csv")
-        top5_df['Process'] = top5_df['sensor'].apply(
-            lambda s: get_process_info(int(s))["process"]
-        )
-        top5_df['Parameter'] = top5_df['sensor'].apply(
-            lambda s: get_sensor_label(int(s))
-        )
-        top5_df['Stage'] = top5_df['sensor'].apply(
-            lambda s: get_process_info(int(s))["stage"]
-        )
-
-        st.markdown("#### Top 5 Sensors by SHAP Importance (Process Mapping)")
-        st.dataframe(top5_df[['sensor','Parameter','Process','Stage','shap_score']],
-                     use_container_width=True, hide_index=True)
-
-        fig4, ax4 = plt.subplots(figsize=(8, 4))
-        labels = [f"{row['Parameter']}" for _, row in top5_df.iterrows()]
-        ax4.barh(labels[::-1], top5_df['shap_score'].values[::-1], color='steelblue')
-        ax4.set_title('Top 5 Sensors - SHAP Importance (with Process Mapping)')
-        ax4.set_xlabel('Mean |SHAP Value|')
-        st.pyplot(fig4)
-        plt.close(fig4)
-
-        # ── ROOT CAUSE GRAPH ──────────────────────────────────────────────────
-        st.markdown("---")
-        st.markdown("### Root Cause Analysis — Process-Level Impact")
-        st.markdown("Aggregated SHAP impact score grouped by FAB process stage")
-
-        process_impact = top5_df.groupby('Process')['shap_score'].sum().reset_index()
-        process_impact.columns = ['Process', 'Total Impact']
-        process_impact = process_impact.sort_values('Total Impact', ascending=False)
-
-        # 공정별 임팩트 bar chart
-        fig_rc, ax_rc = plt.subplots(figsize=(8, 4))
-        impact_colors = []
-        for _, row in process_impact.iterrows():
-            thresh = PROCESS_THRESHOLDS.get(row['Process'], {"warning": 0.6, "critical": 0.8})
-            normalized = min(row['Total Impact'] / 0.03, 1.0)
-            if normalized >= thresh["critical"]:
-                impact_colors.append("#ff4b4b")
-            elif normalized >= thresh["warning"]:
-                impact_colors.append("#ffa500")
-            else:
-                impact_colors.append("#00cc44")
-
-        bars = ax_rc.bar(process_impact['Process'], process_impact['Total Impact'],
-                         color=impact_colors, edgecolor='white', linewidth=1.5)
-        for bar, val in zip(bars, process_impact['Total Impact']):
-            ax_rc.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.0005,
-                       f'{val:.4f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
-        ax_rc.set_title('Root Cause — Anomaly Impact by Process', fontsize=13)
-        ax_rc.set_xlabel('Process')
-        ax_rc.set_ylabel('Cumulative SHAP Impact Score')
-        ax_rc.set_ylim(0, process_impact['Total Impact'].max() * 1.2)
-
-        from matplotlib.patches import Patch
-        legend_elements = [
-            Patch(facecolor='#ff4b4b', label='Critical'),
-            Patch(facecolor='#ffa500', label='Warning'),
-            Patch(facecolor='#00cc44', label='Normal'),
-        ]
-        ax_rc.legend(handles=legend_elements, loc='upper right')
-        st.pyplot(fig_rc)
-        plt.close(fig_rc)
-
-        # 공정별 주요 센서 요약 카드
-        st.markdown("#### Sensor Contribution by Process")
-        proc_cols = st.columns(len(process_impact))
-        for i, (_, prow) in enumerate(process_impact.iterrows()):
-            proc = prow['Process']
-            sensors_in_proc = top5_df[top5_df['Process'] == proc]
-            thresh = PROCESS_THRESHOLDS.get(proc, {"warning": 0.6, "critical": 0.8})
-            normalized = min(prow['Total Impact'] / 0.03, 1.0)
-            if normalized >= thresh["critical"]:
-                card_color = "#ff4b4b"
-            elif normalized >= thresh["warning"]:
-                card_color = "#ffa500"
-            else:
-                card_color = "#00cc44"
-
-            sensor_list = "<br>".join(
-                [f"• {r['Parameter']} ({r['shap_score']:.4f})" for _, r in sensors_in_proc.iterrows()]
-            )
-            with proc_cols[i]:
-                st.markdown(f"""
-                <div style='background:{card_color}22; border:2px solid {card_color};
-                border-radius:8px; padding:12px; text-align:center;'>
-                <h4 style='color:{card_color}; margin:0'>{proc}</h4>
-                <p style='font-size:11px; margin:4px 0'>Impact: {prow['Total Impact']:.4f}</p>
-                <p style='font-size:11px; color:#555; margin:0; text-align:left'>{sensor_list}</p>
-                </div>""", unsafe_allow_html=True)
-        # ──────────────────────────────────────────────────────────────────────
-
-
-        if os.path.exists("data/raw/process_contribution.png"):
-            st.markdown("---")
-            st.markdown("### Process Contribution Analysis")
-            st.caption("공정별 이상 기여도 분석 (SHAP 기반)")
-            col_pct = st.columns(4)
-            contributions = {"CVD": 40.3, "ETCH": 22.0, "CMP": 19.8, "LITHO": 17.9}
-            colors = {"CVD": "#ff4b4b", "ETCH": "#ffa500", "CMP": "#4a90d9", "LITHO": "#4ad94a"}
-            for i, (proc, pct) in enumerate(contributions.items()):
-                col_pct[i].metric(f"{proc}", f"{pct}%", "contribution")
-            st.image("data/raw/process_contribution.png", caption="Process Anomaly Contribution")
-
-        if os.path.exists("data/raw/shap_summary.png"):
-            st.markdown("---")
-            st.image("data/raw/shap_summary.png", caption="SHAP Summary Plot")
-    else:
-        st.info("Run feature importance analysis first: python src/analysis/feature_importance.py")
-
-# TAB 5: Agent 리포트
-with tab5:
-    st.subheader("Agent-based Anomaly Diagnosis Report")
-    st.markdown("4-stage Agent pipeline: Detection → Diagnosis → Action → Report")
+    st.subheader("Agent-based Operator Guidance Report")
+    st.markdown("4-stage operational support pipeline: Detection → Diagnosis → Action → Report")
 
     if os.path.exists("data/raw/top5_sensors.csv"):
         top5_df = pd.read_csv("data/raw/top5_sensors.csv")
 
-        if st.button("Execute Agent Pipeline", use_container_width=True):
+        if st.button("Execute Operational Support Pipeline", use_container_width=True):
             if_scores_input = st.session_state.get('if_scores', np.random.randn(100))
             risk_scores_input = st.session_state.get('risk_scores', np.random.rand(total_count))
 
-            # 단계별 진행 표시
             progress_bar = st.progress(0, text="Initializing pipeline...")
             status_area = st.empty()
 
-            # Stage 1
             status_area.markdown("⚙️ **Stage 1. Detection Agent** running...")
             progress_bar.progress(20, text="Stage 1/4 — Detection Agent")
             import time; time.sleep(0.5)
 
-            # Stage 2
             status_area.markdown("⚙️ **Stage 2. Diagnosis Agent** running...")
             progress_bar.progress(45, text="Stage 2/4 — Diagnosis Agent")
             time.sleep(0.5)
 
-            # Stage 3
             status_area.markdown("⚙️ **Stage 3. Action Agent** running...")
             progress_bar.progress(65, text="Stage 3/4 — Action Agent")
             time.sleep(0.5)
 
-            # Stage 4
             status_area.markdown("⚙️ **Stage 4. Report Agent (GPT-4o-mini)** running...")
             progress_bar.progress(85, text="Stage 4/4 — Report Agent (LLM)")
 
-            with st.spinner("Generating LLM report..."):
+            with st.spinner("Generating operator guidance report..."):
                 pipeline = FabAgentPipeline()
                 result = pipeline.run(if_scores_input, risk_scores_input, top5_df)
 
@@ -477,7 +460,6 @@ with tab5:
 
             st.markdown("---")
 
-            # Stage 1 결과 카드
             st.markdown("""
             <div style='background:#1a1a2e22; border-left:4px solid #4a90d9;
             border-radius:6px; padding:12px; margin-bottom:12px;'>
@@ -485,21 +467,19 @@ with tab5:
             </div>""", unsafe_allow_html=True)
             d1, d2, d3 = st.columns(3)
             d1.metric("Anomaly Detected", f"{det['anomaly_count']}")
-            d2.metric("High Risk Samples", f"{det['high_risk_count']}")
-            d3.metric("Avg Risk Score", f"{det['avg_risk_score']:.3f}")
+            d2.metric("High Priority Samples", f"{det['high_risk_count']}")
+            d3.metric("Avg Alert Score", f"{det['avg_risk_score']:.3f}")
 
-            # Stage 2 결과 카드
             st.markdown("""
             <div style='background:#1a2e1a22; border-left:4px solid #4ad94a;
             border-radius:6px; padding:12px; margin:12px 0;'>
             <strong>Stage 2. Diagnosis Agent</strong>
             </div>""", unsafe_allow_html=True)
-            st.markdown(f"**Primary Process**: `{dia['primary_process']}`")
+            st.markdown(f"**Primary Subsystem**: `{dia['primary_process']}`")
             st.markdown(f"**Affected Stages**: {', '.join(dia['affected_stages'])}")
             causes_df = pd.DataFrame(dia["root_causes"])
             st.dataframe(causes_df, use_container_width=True, hide_index=True)
 
-            # Stage 3 결과 카드
             st.markdown("""
             <div style='background:#2e1a1a22; border-left:4px solid #d94a4a;
             border-radius:6px; padding:12px; margin:12px 0;'>
@@ -511,7 +491,6 @@ with tab5:
             for i, a in enumerate(act["recommended_actions"]):
                 st.markdown(f"{i+1}. {a}")
 
-            # Stage 4 결과 카드
             st.markdown("""
             <div style='background:#2e2a1a22; border-left:4px solid #d9a84a;
             border-radius:6px; padding:12px; margin:12px 0;'>
@@ -519,10 +498,9 @@ with tab5:
             </div>""", unsafe_allow_html=True)
             st.markdown(result["report"])
 
-# ReAct Agent 추론 로그
             st.markdown("---")
             st.markdown("### 🤖 ReAct Agent Reasoning Trace")
-            st.caption("LLM이 스스로 판단한 Tool 호출 순서 및 결과")
+            st.caption("LLM이 판단한 Tool 호출 순서 및 결과")
 
             TOOL_META = {
                 "analyze_anomaly":    ("", "#4a90d9", "Anomaly Analysis"),
@@ -545,17 +523,17 @@ with tab5:
 
             report_path = "data/raw/agent_report.txt"
             with open(report_path, "w", encoding="utf-8") as f:
-                f.write(f"=== FabSight Agent Report ===\n")
+                f.write(f"=== OpsSight Operator Report ===\n")
                 f.write(f"Generated: {result['log']['timestamp']}\n\n")
                 f.write(result["report"])
             st.success("Report saved: data/raw/agent_report.txt")
     else:
-        st.info("Run feature importance analysis first.")
+        st.info("Run signal impact analysis first.")
 
-# TAB 6: 운영 로그 + Anomaly History Chart
-with tab6:
-    st.subheader("FAB Operation Log")
-    st.markdown("Agent pipeline execution history")
+# TAB 5: 운영 로그
+with tab5:
+    st.subheader("Operation Log")
+    st.markdown("Operational support pipeline execution history")
 
     log_path = "data/raw/operation_log.csv"
     if os.path.exists(log_path):
@@ -565,14 +543,12 @@ with tab6:
         st.markdown(f"**Total records: {len(log_df)}**")
 
         if len(log_df) > 1:
-            # ── ANOMALY HISTORY CHART ─────────────────────────────────────────
             st.markdown("---")
-            st.markdown("### Anomaly History Analysis")
+            st.markdown("### Abnormal Event History Analysis")
 
             col_h1, col_h2 = st.columns(2)
 
             with col_h1:
-                # 시간대별 anomaly count
                 fig_h1, ax_h1 = plt.subplots(figsize=(6, 3))
                 ax_h1.plot(range(len(log_df)), log_df['anomaly_count'].values[::-1],
                            marker='o', color='steelblue', linewidth=2, markersize=5)
@@ -586,36 +562,33 @@ with tab6:
                 plt.close(fig_h1)
 
             with col_h2:
-                # 공정별 이상 발생 빈도
                 if 'primary_process' in log_df.columns:
                     proc_freq = log_df['primary_process'].value_counts()
                     fig_h2, ax_h2 = plt.subplots(figsize=(6, 3))
                     proc_colors = ["#ff4b4b" if p in ["CVD", "ETCH"] else "#ffa500"
                                    for p in proc_freq.index]
                     ax_h2.bar(proc_freq.index, proc_freq.values, color=proc_colors)
-                    ax_h2.set_title('Anomaly Frequency by Process')
-                    ax_h2.set_xlabel('Process')
+                    ax_h2.set_title('Abnormal Event Frequency by Subsystem')
+                    ax_h2.set_xlabel('Subsystem')
                     ax_h2.set_ylabel('Count')
                     st.pyplot(fig_h2)
                     plt.close(fig_h2)
 
-            # high risk trend
-            st.markdown("#### High Risk Sample Trend")
+            st.markdown("#### High Priority Trend")
             fig_h3, ax_h3 = plt.subplots(figsize=(12, 3))
             x_idx = range(len(log_df))
             ax_h3.bar(x_idx, log_df['high_risk_count'].values[::-1],
-                      color='#ff4b4b', alpha=0.7, label='High Risk Count')
+                      color='#ff4b4b', alpha=0.7, label='High Priority Count')
             ax_h3.plot(x_idx, log_df['anomaly_count'].values[::-1],
                        color='steelblue', marker='o', linewidth=1.5,
                        markersize=4, label='Total Anomaly Count')
-            ax_h3.set_title('High Risk vs Anomaly Count Trend')
+            ax_h3.set_title('High Priority vs Anomaly Count Trend')
             ax_h3.set_xlabel('Execution Index')
             ax_h3.legend()
             st.pyplot(fig_h3)
             plt.close(fig_h3)
 
             st.markdown("---")
-            # ─────────────────────────────────────────────────────────────────
 
             st.markdown("### Log Statistics")
             s1, s2, s3 = st.columns(3)
@@ -627,12 +600,12 @@ with tab6:
         st.markdown("---")
         st.dataframe(log_df, use_container_width=True, hide_index=True)
     else:
-        st.info("No operation logs yet. Run the Agent pipeline to start logging.")
+        st.info("No operation logs yet. Run the operational support pipeline to start logging.")
 
-# TAB 7: Stream Simulator
-with tab7:
-    st.subheader("Real-time Sensor Stream Simulator")
-    st.markdown("Simulates live sensor data ingestion and anomaly detection in real-time")
+# TAB 6: Stream Simulator
+with tab6:
+    st.subheader("Scenario-based Signal Stream Simulator")
+    st.markdown("Simulates live multi-signal data ingestion and abnormal condition monitoring in real time")
     st.markdown("---")
 
     from src.simulator.stream_simulator import SensorStreamSimulator
@@ -641,9 +614,9 @@ with tab7:
 
     col_s1, col_s2 = st.columns([1, 3])
     with col_s1:
-        stream_n = st.slider("Samples per tick", 5, 50, 20)
-        stream_speed = st.slider("Speed (seconds)", 0.5, 3.0, 1.0, 0.5)
-        run_stream = st.button("Start Stream", use_container_width=True)
+        stream_n = st.slider("Signals per tick", 5, 50, 20)
+        stream_speed = st.slider("Tick interval (seconds)", 0.5, 3.0, 1.0, 0.5)
+        run_stream = st.button("Start Scenario Stream", use_container_width=True)
 
     with col_s2:
         stream_placeholder = st.empty()
@@ -686,8 +659,8 @@ with tab7:
                 m1, m2, m3 = st.columns(3)
                 status_color = "🔴" if anomaly_count > 3 else "🟡" if anomaly_count > 0 else "🟢"
                 m1.metric("Anomalies", f"{status_color} {anomaly_count}")
-                m2.metric("High Risk", f"{high_risk}")
-                m3.metric("Avg Risk Score", f"{avg_risk:.3f}")
+                m2.metric("High Priority", f"{high_risk}")
+                m3.metric("Avg Alert Score", f"{avg_risk:.3f}")
 
                 if len(hist_df) > 1:
                     fig_s, axes_s = plt.subplots(1, 2, figsize=(10, 2.5))
@@ -701,10 +674,10 @@ with tab7:
                     axes_s[1].plot(hist_df["tick"], hist_df["avg_risk"],
                                    marker='s', color='steelblue', linewidth=2)
                     axes_s[1].axhline(0.7, color='red', linestyle='--',
-                                      linewidth=1, label='High Risk')
+                                      linewidth=1, label='High Priority')
                     axes_s[1].axhline(0.4, color='orange', linestyle='--',
-                                      linewidth=1, label='Medium Risk')
-                    axes_s[1].set_title("Avg Risk Score per Tick")
+                                      linewidth=1, label='Medium Priority')
+                    axes_s[1].set_title("Avg Alert Score per Tick")
                     axes_s[1].set_xlabel("Tick")
                     axes_s[1].legend(fontsize=8)
                     axes_s[1].set_ylim(0, 1)
@@ -716,4 +689,114 @@ with tab7:
 
             time.sleep(stream_speed)
 
-        st.success("Stream simulation complete. 15 ticks processed.")
+        st.success("Scenario stream simulation complete. 15 ticks processed.")
+
+# TAB 7: SHAP + Root Cause Graph
+with tab7:
+    st.subheader("Signal Impact Analysis (SHAP Feature Importance)")
+
+    if os.path.exists("data/raw/top5_sensors.csv"):
+        top5_df = pd.read_csv("data/raw/top5_sensors.csv")
+        top5_df['Process'] = top5_df['sensor'].apply(
+            lambda s: get_process_info(int(s))["process"]
+        )
+        top5_df['Parameter'] = top5_df['sensor'].apply(
+            lambda s: get_sensor_label(int(s))
+        )
+        top5_df['Stage'] = top5_df['sensor'].apply(
+            lambda s: get_process_info(int(s))["stage"]
+        )
+
+        st.markdown("#### Top 5 Signals by SHAP Importance (Subsystem Mapping)")
+        st.dataframe(top5_df[['sensor','Parameter','Process','Stage','shap_score']],
+                     use_container_width=True, hide_index=True)
+
+        fig4, ax4 = plt.subplots(figsize=(8, 4))
+        labels = [f"{row['Parameter']}" for _, row in top5_df.iterrows()]
+        ax4.barh(labels[::-1], top5_df['shap_score'].values[::-1], color='steelblue')
+        ax4.set_title('Top 5 Signals - SHAP Importance (with Subsystem Mapping)')
+        ax4.set_xlabel('Mean |SHAP Value|')
+        st.pyplot(fig4)
+        plt.close(fig4)
+
+        st.markdown("---")
+        st.markdown("### Root Cause Analysis — Subsystem-Level Impact")
+        st.markdown("Aggregated SHAP impact score grouped by subsystem")
+
+        process_impact = top5_df.groupby('Process')['shap_score'].sum().reset_index()
+        process_impact.columns = ['Process', 'Total Impact']
+        process_impact = process_impact.sort_values('Total Impact', ascending=False)
+
+        fig_rc, ax_rc = plt.subplots(figsize=(8, 4))
+        impact_colors = []
+        for _, row in process_impact.iterrows():
+            thresh = PROCESS_THRESHOLDS.get(row['Process'], {"warning": 0.6, "critical": 0.8})
+            normalized = min(row['Total Impact'] / 0.03, 1.0)
+            if normalized >= thresh["critical"]:
+                impact_colors.append("#ff4b4b")
+            elif normalized >= thresh["warning"]:
+                impact_colors.append("#ffa500")
+            else:
+                impact_colors.append("#00cc44")
+
+        bars = ax_rc.bar(process_impact['Process'], process_impact['Total Impact'],
+                         color=impact_colors, edgecolor='white', linewidth=1.5)
+        for bar, val in zip(bars, process_impact['Total Impact']):
+            ax_rc.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.0005,
+                       f'{val:.4f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+        ax_rc.set_title('Root Cause — Abnormal Impact by Subsystem', fontsize=13)
+        ax_rc.set_xlabel('Subsystem')
+        ax_rc.set_ylabel('Cumulative SHAP Impact Score')
+        ax_rc.set_ylim(0, process_impact['Total Impact'].max() * 1.2)
+
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor='#ff4b4b', label='Critical'),
+            Patch(facecolor='#ffa500', label='Warning'),
+            Patch(facecolor='#00cc44', label='Normal'),
+        ]
+        ax_rc.legend(handles=legend_elements, loc='upper right')
+        st.pyplot(fig_rc)
+        plt.close(fig_rc)
+
+        st.markdown("#### Signal Contribution by Subsystem")
+        proc_cols = st.columns(len(process_impact))
+        for i, (_, prow) in enumerate(process_impact.iterrows()):
+            proc = prow['Process']
+            sensors_in_proc = top5_df[top5_df['Process'] == proc]
+            thresh = PROCESS_THRESHOLDS.get(proc, {"warning": 0.6, "critical": 0.8})
+            normalized = min(prow['Total Impact'] / 0.03, 1.0)
+            if normalized >= thresh["critical"]:
+                card_color = "#ff4b4b"
+            elif normalized >= thresh["warning"]:
+                card_color = "#ffa500"
+            else:
+                card_color = "#00cc44"
+
+            sensor_list = "<br>".join(
+                [f"• {r['Parameter']} ({r['shap_score']:.4f})" for _, r in sensors_in_proc.iterrows()]
+            )
+            with proc_cols[i]:
+                st.markdown(f"""
+                <div style='background:{card_color}22; border:2px solid {card_color};
+                border-radius:8px; padding:12px; text-align:center;'>
+                <h4 style='color:{card_color}; margin:0'>{proc}</h4>
+                <p style='font-size:11px; margin:4px 0'>Impact: {prow['Total Impact']:.4f}</p>
+                <p style='font-size:11px; color:#555; margin:0; text-align:left'>{sensor_list}</p>
+                </div>""", unsafe_allow_html=True)
+
+        if os.path.exists("data/raw/process_contribution.png"):
+            st.markdown("---")
+            st.markdown("### Subsystem Contribution Analysis")
+            st.caption("서브시스템별 이상 기여도 분석 (SHAP 기반)")
+            col_pct = st.columns(4)
+            contributions = {"CVD": 40.3, "ETCH": 22.0, "CMP": 19.8, "LITHO": 17.9}
+            for i, (proc, pct) in enumerate(contributions.items()):
+                col_pct[i].metric(f"{proc}", f"{pct}%", "contribution")
+            st.image("data/raw/process_contribution.png", caption="Subsystem Abnormal Contribution")
+
+        if os.path.exists("data/raw/shap_summary.png"):
+            st.markdown("---")
+            st.image("data/raw/shap_summary.png", caption="SHAP Summary Plot")
+    else:
+        st.info("Run signal impact analysis first: python src/analysis/feature_importance.py")
