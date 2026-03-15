@@ -24,10 +24,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# 변경
 if platform.system() == 'Darwin':
     matplotlib.rcParams['font.family'] = 'AppleGothic'
 elif platform.system() == 'Windows':
     matplotlib.rcParams['font.family'] = 'Malgun Gothic'
+else:
+    matplotlib.rcParams['font.family'] = 'DejaVu Sans'
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 from src.process_map import get_sensor_label, get_process_info, PROCESS_ORDER, PROCESS_THRESHOLDS
