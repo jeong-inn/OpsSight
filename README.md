@@ -1,10 +1,9 @@
 # OpsSight
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://opssight-agwkrtnxc3jk4i2hfq4pok.streamlit.app)
-
 OpsSight는 다중 신호 기반 이상 징후를 단순 탐지 결과로 끝내지 않고, **경보 수준(Alert Level)**, **상태 전이(State Transition)**, **추천 조치(Recommended Action)**, **시나리오 기반 검증(Scenario Validation)** 으로 연결하는 **운용지원 응용SW 프로토타입**입니다.
+![demo](docs/demo.gif)
 
 이 프로젝트는 다양한 입력 신호에서 발생하는 이상 징후를 운용자가 바로 해석할 수 있는 상태 정보로 변환하고, 치명 상황에서는 안전 정지와 고장 상태를 구분하며, 복구 및 수동 reset까지 포함한 운용 흐름을 검증할 수 있도록 설계되었습니다.
-
 핵심 목표는 단순히 이상을 탐지하는 것이 아니라, **이상 징후를 실제 운용 판단과 시험 가능한 구조로 연결하는 것**입니다.
 
 ---
