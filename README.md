@@ -1,4 +1,11 @@
 # OpsSight
+[![Python](https://img.shields.io/badge/Python-3.9-blue)](https://python.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-red)](https://streamlit.io)
+[![OpenAI](https://img.shields.io/badge/LLM-GPT--4o--mini-green)](https://openai.com)
+[![StateMachine](https://img.shields.io/badge/State-Machine-purple)](https://github.com/jeong-inn/opssight)
+[![Scenarios](https://img.shields.io/badge/Scenarios-10%20PASS-brightgreen)](https://github.com/jeong-inn/opssight)
+[![Demo](https://img.shields.io/badge/Live-Demo-orange)](https://opssight-agwkrtnxc3jk4i2hfq4pok.streamlit.app)
+
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://opssight-agwkrtnxc3jk4i2hfq4pok.streamlit.app)
 
 OpsSight는 다중 신호 기반 이상 징후를 단순 탐지 결과로 끝내지 않고, **경보 수준(Alert Level)**, **상태 전이(State Transition)**, **추천 조치(Recommended Action)**, **시나리오 기반 검증(Scenario Validation)** 으로 연결하는 **운용지원 응용SW 프로토타입**입니다.
